@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Vector Space Transformation Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#151e32',
+                            900: '#0f172a',
+                            950: '#090d16',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        /* Custom subtle scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* Custom range slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 2px;
+        }
+        canvas {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col lg:h-screen lg:overflow-hidden bg-[#0f172a] text-slate-100">
+
+    <!-- Top Header -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-4 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16M8 4v16M16 4v16"/>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                    2D Vector Space Transformation Visualizer
+                    <span id="header-badge" class="text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Linear</span>
+                </h1>
+                <p class="text-xs text-slate-400 hidden sm:block">Drag vector tips <span class="text-cyan-400 font-semibold">u</span> and <span class="text-emerald-400 font-semibold">v</span> on the grid to test Additivity &amp; Homogeneity visually</p>
+            </div>
+        </div>
+
+        <!-- Global Controls: Morph Animation & Proof Overlay -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+            <!-- Play / Pause & Morph t Slider -->
+            <div class="flex items-center gap-2 bg-slate-850 border border-slate-700/70 rounded-xl px-3 py-1.5">
+                <button id="btn-play-pause" class="flex items-center justify-center w-7 h-7 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 transition" title="Play / Pause Transformation Morph">
+                    <svg id="icon-play" class="w-4 h-4 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+                    <svg id="icon-pause" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zM12.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75a.75.75 0 00-.75-.75h-1.5z"/></svg>
+                </button>
+                <div class="flex flex-col w-24 sm:w-32">
+                    <div class="flex justify-between text-[10px] font-mono text-slate-400">
+                        <span>Morph <span class="text-cyan-400">t</span></span>
+                        <span id="val-t" class="text-slate-200 font-semibold">1.00</span>
+                    </div>
+                    <input id="slider-t" type="range" min="0" max="1" step="0.01" value="1" class="w-full mt-1">
+                </div>
+            </div>
+
+            <!-- Linearity Proof Overlay Toggle -->
+            <button id="btn-proof-toggle" class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition border bg-indigo-500/20 border-indigo-500/50 text-indigo-300 shadow-sm shadow-indigo-500/10">
+                <span id="proof-dot" class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                <span>Linearity Proof Overlay</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+        <!-- Left Sidebar: Transformations Menu & Vector Controls -->
+        <aside class="w-full lg:w-80 xl:w-96 bg-slate-900/70 border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col shrink-0 lg:overflow-y-auto max-h-[45vh] lg:max-h-none">
+            
+            <!-- Vector Controls Section -->
+            <div class="p-4 border-b border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Input Vectors &amp; Scalar</h2>
+                    <button id="btn-reset-vectors" class="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium transition">Reset u, v</button>
+                </div>
+
+                <!-- Scalar c slider -->
+                <div class="bg-slate-850/90 border border-slate-800 rounded-xl p-2.5">
+                    <div class="flex justify-between items-center text-xs mb-1.5">
+                        <span class="text-slate-300 font-medium">Scalar Multiplier <span class="font-mono text-amber-400 font-bold">c</span></span>
+                        <span id="val-c" class="font-mono text-amber-400 font-semibold bg-amber-500/10 px-2 py-0.5 rounded">1.50</span>
+                    </div>
+                    <input id="slider-c" type="range" min="-2" max="2" step="0.1" value="1.5" class="w-full">
+                    <div class="flex justify-between text-[10px] font-mono text-slate-500 mt-1">
+                        <span>-2.0</span>
+                        <span>0.0</span>
+                        <span>+2.0</span>
+                    </div>
+                </div>
+
+                <!-- Live Coordinate Readout for u and v -->
+                <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                    <div class="bg-slate-850/90 border border-cyan-500/20 rounded-xl p-2 flex items-center justify-between">
+                        <span class="text-cyan-400 font-bold">u</span>
+                        <span id="coord-u" class="text-slate-200">(2.0, 1.0)</span>
+                    </div>
+                    <div class="bg-slate-850/90 border border-emerald-500/20 rounded-xl p-2 flex items-center justify-between">
+                        <span class="text-emerald-400 font-bold">v</span>
+                        <span id="coord-v" class="text-slate-200">(-1.0, 2.0)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Presets List -->
+            <div class="p-4 space-y-5 flex-1">
+                <!-- Category 1: Linear Transformations -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            Linear Transformations
+                        </h3>
+                        <span class="text-[10px] font-mono text-slate-500">Preserves Grid</span>
+                    </div>
+                    <div id="linear-presets" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
+                        <!-- Populated via JS -->
+                    </div>
+
+                    <!-- Custom 2x2 Matrix Inputs (shown when Custom Matrix is selected) -->
+                    <div id="custom-matrix-panel" class="hidden mt-2.5 bg-slate-850 border border-emerald-500/30 rounded-xl p-3">
+                        <div class="text-[11px] font-semibold text-emerald-300 mb-2 flex justify-between">
+                            <span>Custom 2×2 Matrix [ î , ĵ ]</span>
+                            <span class="font-mono text-slate-400">T(x,y) = Ax</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 font-mono text-xs">
+                            <label class="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-lg px-2 py-1">
+                                <span class="text-slate-400">a:</span>
+                                <input id="mat-a" type="number" step="0.1" value="1.2" class="w-16 bg-transparent text-right text-cyan-300 focus:outline-none">
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-lg px-2 py-1">
+                                <span class="text-slate-400">b:</span>
+                                <input id="mat-b" type="number" step="0.1" value="-0.6" class="w-16 bg-transparent text-right text-emerald-300 focus:outline-none">
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-lg px-2 py-1">
+                                <span class="text-slate-400">c:</span>
+                                <input id="mat-c" type="number" step="0.1" value="0.5" class="w-16 bg-transparent text-right text-cyan-300 focus:outline-none">
+                            </label>
+                            <label class="flex items-center justify-between bg-slate-900 border border-slate-700 rounded-lg px-2 py-1">
+                                <span class="text-slate-400">d:</span>
+                                <input id="mat-d" type="number" step="0.1" value="1.1" class="w-16 bg-transparent text-right text-emerald-300 focus:outline-none">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Category 2: Non-Linear Transformations -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                            Non-Linear Transformations
+                        </h3>
+                        <span class="text-[10px] font-mono text-slate-500">Breaks Axioms</span>
+                    </div>
+                    <div id="nonlinear-presets" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-1.5">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Center Interactive Canvas Container -->
+        <main class="flex-1 relative bg-[#090d16] flex flex-col min-h-[380px] lg:min-h-0">
+            <canvas id="vector-canvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+            <!-- Floating Legend Top-Left inside Canvas -->
+            <div class="absolute top-3 left-3 pointer-events-none flex flex-wrap gap-2 max-w-[calc(100%-6rem)]">
+                <div class="bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-2 text-[11px] space-y-1 shadow-xl">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-0.5 bg-cyan-400 inline-block"></span>
+                        <span class="text-slate-300"><strong class="text-cyan-400 font-mono">u</strong> &amp; <strong class="text-cyan-300 font-mono">T(u)</strong></span>
+                        <span class="w-3 h-0.5 bg-emerald-400 inline-block ml-1"></span>
+                        <span class="text-slate-300"><strong class="text-emerald-400 font-mono">v</strong> &amp; <strong class="text-emerald-300 font-mono">T(v)</strong></span>
+                    </div>
+                    <div id="legend-proof-items" class="space-y-1 pt-1 border-t border-slate-800/80">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full border-2 border-purple-400 inline-block"></span>
+                            <span class="text-slate-300"><span class="text-purple-400 font-mono font-semibold">T(u + v)</span> vs <span class="text-fuchsia-300 font-mono font-semibold">T(u) + T(v)</span></span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full border-2 border-amber-400 inline-block"></span>
+                            <span class="text-slate-300"><span class="text-amber-400 font-mono font-semibold">T(c·u)</span> vs <span class="text-orange-300 font-mono font-semibold">c·T(u)</span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Zoom & View Controls Bottom-Left -->
+            <div class="absolute bottom-3 left-3 flex items-center gap-1.5 bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-xl p-1 shadow-xl">
+                <button id="btn-zoom-in" class="w-8 h-8 rounded-lg hover:bg-slate-800 text-slate-300 flex items-center justify-center font-mono text-base transition" title="Zoom In">+</button>
+                <button id="btn-zoom-out" class="w-8 h-8 rounded-lg hover:bg-slate-800 text-slate-300 flex items-center justify-center font-mono text-base transition" title="Zoom Out">−</button>
+                <button id="btn-reset-view" class="px-2.5 h-8 rounded-lg hover:bg-slate-800 text-slate-300 text-xs font-medium transition" title="Center View">Center</button>
+            </div>
+
+            <!-- Drag Hint Pill Bottom-Right -->
+            <div class="absolute bottom-3 right-3 pointer-events-none hidden sm:flex items-center gap-1.5 bg-slate-900/80 backdrop-blur border border-slate-800/80 rounded-full px-3 py-1 text-[11px] text-slate-400">
+                <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5"/></svg>
+                <span>Drag <strong class="text-cyan-400">u</strong> or <strong class="text-emerald-400">v</strong> handles • Scroll to zoom</span>
+            </div>
+        </main>
+
+        <!-- Right Panel: Mathematical Formula, Axiom Status Badges & Geometric Takeaway -->
+        <aside class="w-full lg:w-80 xl:w-96 bg-slate-900/90 border-t lg:border-t-0 lg:border-l border-slate-800 p-4 flex flex-col gap-4 shrink-0 lg:overflow-y-auto">
+            
+            <!-- Active Transformation Formula Card -->
+            <div class="bg-slate-850 border border-slate-800 rounded-2xl p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Active Transformation</span>
+                    <span id="info-category-pill" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">LINEAR</span>
+                </div>
+                <h2 id="info-title" class="text-base font-bold text-white mb-2">Counterclockwise Rotation (45°)</h2>
+                <div id="info-formula" class="bg-slate-950/90 border border-slate-800/90 rounded-xl p-3 font-mono text-xs sm:text-sm text-cyan-300 overflow-x-auto leading-relaxed">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <!-- Live Axiom Verification Badges -->
+            <div class="space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Linearity Axiom Checks</h3>
+                    <span class="text-[10px] font-mono text-slate-500">Evaluated at t = 1</span>
+                </div>
+
+                <!-- Check 1: Origin Fixed -->
+                <div id="badge-origin" class="bg-slate-850 border border-slate-800 rounded-xl p-3 transition">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-200">1. Origin Fixed: <span class="font-mono text-slate-400">T(0) = 0</span></span>
+                        <span id="status-origin" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">PASS</span>
+                    </div>
+                    <p id="detail-origin" class="text-[11px] font-mono text-slate-400">T(0, 0) = (0.00, 0.00)</p>
+                </div>
+
+                <!-- Check 2: Additivity -->
+                <div id="badge-additivity" class="bg-slate-850 border border-slate-800 rounded-xl p-3 transition">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-200">2. Additivity: <span class="font-mono text-purple-300">T(u+v) = T(u)+T(v)</span></span>
+                        <span id="status-additivity" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">PASS</span>
+                    </div>
+                    <div id="detail-additivity" class="text-[11px] font-mono text-slate-400 space-y-0.5 mt-1">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+
+                <!-- Check 3: Homogeneity -->
+                <div id="badge-homogeneity" class="bg-slate-850 border border-slate-800 rounded-xl p-3 transition">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-200">3. Homogeneity: <span class="font-mono text-amber-300">T(cu) = cT(u)</span></span>
+                        <span id="status-homogeneity" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">PASS</span>
+                    </div>
+                    <div id="detail-homogeneity" class="text-[11px] font-mono text-slate-400 space-y-0.5 mt-1">
+                        <!-- Populated via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Concise Geometric Takeaway -->
+            <div id="takeaway-box" class="bg-gradient-to-br from-slate-850 to-slate-900 border border-slate-700/80 rounded-2xl p-4 mt-auto">
+                <div class="flex items-center gap-2 mb-1.5">
+                    <svg class="w-4 h-4 text-cyan-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-cyan-400">Geometric Takeaway</h4>
+                </div>
+                <p id="info-takeaway" class="text-xs sm:text-[13px] text-slate-300 leading-relaxed">
+                    Rotations pivot the entire plane around the fixed origin without bending or stretching grid spacing. Every parallelogram of vectors maps to a congruent parallelogram, preserving both vector addition and scalar multiplication.
+                </p>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        /**
+         * 2D Vector Space Transformation Visualizer
+         * Core state, presets, math evaluation, and HTML5 Canvas rendering engine.
+         */
+
+        // ==========================================
+        // 1. PRESETS DEFINITION
+        // ==========================================
+        const PRESETS = [
+            // --- LINEAR TRANSFORMATIONS ---
+            {
+                id: 'rot45',
+                category: 'linear',
+                name: 'Rotation (45° CCW)',
+                subtitle: 'Rigid rotation around origin',
+                formulaHTML: `T(x, y) = [ cos 45°  -sin 45° ] [ x ]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ sin 45°   cos 45° ] [ y ]`,
+                takeaway: 'Rotations pivot the entire plane around the fixed origin while keeping all grid lines straight, parallel, and evenly spaced. Every parallelogram maps to a rotated parallelogram, preserving both addition and scaling.',
+                transform: (x, y) => {
+                    const c = Math.SQRT1_2;
+                    return { x: c * x - c * y, y: c * x + c * y };
+                }
+            },
+            {
+                id: 'shear',
+                category: 'linear',
+                name: 'Horizontal Shear',
+                subtitle: 'Matrix [1, 1; 0, 1]',
+                formulaHTML: `T(x, y) = [ 1  1 ] [ x ] = (x + y, y)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ 0  1 ] [ y ]`,
+                takeaway: 'Shearing tilts vertical grid lines diagonally while keeping horizontal lines fixed. Even though angles distort, lines remain straight and parallel, so T(u + v) still lands exactly on T(u) + T(v).',
+                transform: (x, y) => ({ x: x + y, y: y })
+            },
+            {
+                id: 'scale',
+                category: 'linear',
+                name: 'Non-Uniform Stretch',
+                subtitle: 'Matrix [1.5, 0; 0, 0.5]',
+                formulaHTML: `T(x, y) = [ 1.5   0  ] [ x ] = (1.5x, 0.5y)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[  0   0.5 ] [ y ]`,
+                takeaway: 'Stretching horizontally by 1.5× and squishing vertically by 0.5× changes grid aspect ratios, yet grid lines remain parallel and evenly spaced—guaranteeing homogeneity T(cu) = cT(u).',
+                transform: (x, y) => ({ x: 1.5 * x, y: 0.5 * y })
+            },
+            {
+                id: 'reflect',
+                category: 'linear',
+                name: 'Reflection across y = x',
+                subtitle: 'Matrix [0, 1; 1, 0]',
+                formulaHTML: `T(x, y) = [ 0  1 ] [ x ] = (y, x)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ 1  0 ] [ y ]`,
+                takeaway: 'Flipping the plane across the diagonal line y = x reverses orientation (swapping î and ĵ), but keeps the origin anchored and preserves all linear combinations.',
+                transform: (x, y) => ({ x: y, y: x })
+            },
+            {
+                id: 'project',
+                category: 'linear',
+                name: 'Orthogonal Projection (x-axis)',
+                subtitle: 'Matrix [1, 0; 0, 0]',
+                formulaHTML: `T(x, y) = [ 1  0 ] [ x ] = (x, 0)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ 0  0 ] [ y ]`,
+                takeaway: 'Even when 2D space collapses completely onto a 1D line (rank-deficient), the transformation is still strictly linear: shadows of vectors add and scale identically to the original vectors.',
+                transform: (x, y) => ({ x: x, y: 0 })
+            },
+            {
+                id: 'custom',
+                category: 'linear',
+                name: 'Custom 2×2 Matrix',
+                subtitle: 'Edit entries a, b, c, d',
+                formulaHTML: '', // Dynamically updated
+                takeaway: 'Every 2×2 matrix defines a linear transformation whose columns specify where the basis vectors î = (1,0) and ĵ = (0,1) land. Try making the determinant zero (ad − bc = 0) to collapse space onto a line!',
+                transform: (x, y) => ({
+                    x: state.customMatrix.a * x + state.customMatrix.b * y,
+                    y: state.customMatrix.c * x + state.customMatrix.d * y
+                })
+            },
+
+            // --- NON-LINEAR TRANSFORMATIONS ---
+            {
+                id: 'translate',
+                category: 'nonlinear',
+                name: 'Translation / Shift',
+                subtitle: 'T(x, y) = (x + 2, y + 1)',
+                formulaHTML: `T(x, y) = (x + 2, y + 1)`,
+                takeaway: 'A classic trap! Grid lines stay straight, parallel, and evenly spaced, but the origin moves away from (0,0). Because T(0) ≠ 0, adding two shifted vectors double-counts the shift: T(u+v) ≠ T(u)+T(v).',
+                transform: (x, y) => ({ x: x + 2, y: y + 1 })
+            },
+            {
+                id: 'quadratic',
+                category: 'nonlinear',
+                name: 'Quadratic Warp',
+                subtitle: 'T(x, y) = (x + 0.15y², y)',
+                formulaHTML: `T(x, y) = (x + 0.15y², y)`,
+                takeaway: 'The origin stays fixed, but straight vertical lines bend into parabolas. Because y² grows quadratically, scaling a vector by c scales the warp by c² instead of c, breaking T(cu) = cT(u).',
+                transform: (x, y) => ({ x: x + 0.15 * y * y, y: y })
+            },
+            {
+                id: 'swirl',
+                category: 'nonlinear',
+                name: 'Radial / Polar Swirl',
+                subtitle: 'Rotation angle ∝ radius r',
+                formulaHTML: `r = √(x² + y²), θ = 0.45·r<br>T(x, y) = (x cos θ − y sin θ, x sin θ + y cos θ)`,
+                takeaway: 'Points farther from the origin rotate more than points close to it, twisting straight grid lines into spirals. Since rotation depends on vector length, additivity and homogeneity both fail.',
+                transform: (x, y) => {
+                    const r = Math.hypot(x, y);
+                    const theta = 0.45 * r;
+                    const cosT = Math.cos(theta);
+                    const sinT = Math.sin(theta);
+                    return { x: x * cosT - y * sinT, y: x * sinT + y * cosT };
+                }
+            },
+            {
+                id: 'square',
+                category: 'nonlinear',
+                name: 'Component-Wise Squaring',
+                subtitle: 'T(x, y) = (x|x|, y|y|)',
+                formulaHTML: `T(x, y) = (x²·sign(x), y²·sign(y))`,
+                takeaway: 'Notice how the coordinate axes stay straight and the origin stays fixed, yet grid spacing stretches unevenly! Doubling a vector quadruples its image length (T(2u) = 4T(u) ≠ 2T(u)), violating homogeneity.',
+                transform: (x, y) => ({
+                    x: x * Math.abs(x),
+                    y: y * Math.abs(y)
+                })
+            },
+            {
+                id: 'absfold',
+                category: 'nonlinear',
+                name: 'Absolute Value Fold',
+                subtitle: 'T(x, y) = (|x|, y)',
+                formulaHTML: `T(x, y) = (|x|, y)`,
+                takeaway: 'Folds the entire left half-plane (x < 0) onto the right half-plane like a sheet of paper. Negating a vector with c = -1 fails immediately: T(-u) points right while -T(u) points left.',
+                transform: (x, y) => ({ x: Math.abs(x), y: y })
+            },
+            {
+                id: 'sinwave',
+                category: 'nonlinear',
+                name: 'Sinusoidal Wave',
+                subtitle: 'T(x, y) = (x, y + 0.6 sin(1.5x))',
+                formulaHTML: `T(x, y) = (x, y + 0.6·sin(1.5x))`,
+                takeaway: 'Ripples horizontal grid lines into sine waves. Since sin(1.5(x₁ + x₂)) ≠ sin(1.5x₁) + sin(1.5x₂), the sum of two vectors no longer lands on the tip of the transformed parallelogram.',
+                transform: (x, y) => ({ x: x, y: y + 0.6 * Math.sin(1.5 * x) })
+            }
+        ];
+
+        // ==========================================
+        // 2. APPLICATION STATE
+        // ==========================================
+        const state = {
+            presetId: 'rot45',
+            u: { x: 2.0, y: 1.0 },
+            v: { x: -1.0, y: 2.0 },
+            c: 1.5,
+            t: 1.0,
+            isPlaying: false,
+            playDirection: 1,
+            showProof: true,
+            customMatrix: { a: 1.2, b: -0.6, c: 0.5, d: 1.1 },
+            // Viewport camera
+            scale: 52, // pixels per unit
+            offsetX: 0,
+            offsetY: 0,
+            // Interaction
+            draggingVector: null, // 'u' | 'v' | 'pan' | null
+            panStart: { x: 0, y: 0 },
+            hoverVector: null
+        };
+
+        // ==========================================
+        // 3. DOM ELEMENTS & INITIALIZATION
+        // ==========================================
+        const canvas = document.getElementById('vector-canvas');
+        const ctx = canvas.getContext('2d');
+
+        const linearListEl = document.getElementById('linear-presets');
+        const nonlinearListEl = document.getElementById('nonlinear-presets');
+        const customMatrixPanel = document.getElementById('custom-matrix-panel');
+
+        const sliderT = document.getElementById('slider-t');
+        const valT = document.getElementById('val-t');
+        const btnPlayPause = document.getElementById('btn-play-pause');
+        const iconPlay = document.getElementById('icon-play');
+        const iconPause = document.getElementById('icon-pause');
+
+        const sliderC = document.getElementById('slider-c');
+        const valC = document.getElementById('val-c');
+        const btnProofToggle = document.getElementById('btn-proof-toggle');
+        const legendProofItems = document.getElementById('legend-proof-items');
+
+        // Build Preset Buttons
+        function renderPresetButtons() {
+            linearListEl.innerHTML = '';
+            nonlinearListEl.innerHTML = '';
+
+            PRESETS.forEach(preset => {
+                const isSelected = preset.id === state.presetId;
+                const isLin = preset.category === 'linear';
+                const btn = document.createElement('button');
+                btn.className = `w-full text-left px-3 py-2 rounded-xl border transition flex flex-col gap-0.5 ${
+                    isSelected
+                        ? (isLin
+                            ? 'bg-emerald-500/15 border-emerald-500/50 text-white shadow-sm shadow-emerald-500/10'
+                            : 'bg-rose-500/15 border-rose-500/50 text-white shadow-sm shadow-rose-500/10')
+                        : 'bg-slate-850/70 border-slate-800/90 hover:bg-slate-800 text-slate-300'
+                }`;
+                btn.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold">${preset.name}</span>
+                        ${isSelected ? `<span class="w-1.5 h-1.5 rounded-full ${isLin ? 'bg-emerald-400' : 'bg-rose-400'}"></span>` : ''}
+                    </div>
+                    <span class="text-[11px] font-mono text-slate-400 truncate">${preset.subtitle}</span>
+                `;
+                btn.addEventListener('click', () => selectPreset(preset.id));
+
+                if (isLin) {
+                    linearListEl.appendChild(btn);
+                } else {
+                    nonlinearListEl.appendChild(btn);
+                }
+            });
+        }
+
+        function selectPreset(id) {
+            state.presetId = id;
+            customMatrixPanel.classList.toggle('hidden', id !== 'custom');
+
+            // Trigger smooth morph from 0 to 1 whenever a new preset is clicked
+            state.t = 0;
+            sliderT.value = 0;
+            valT.textContent = '0.00';
+            state.playDirection = 1;
+            setPlaying(true);
+
+            renderPresetButtons();
+            updateInfoPanel();
+        }
+
+        function setPlaying(playing) {
+            state.isPlaying = playing;
+            if (playing) {
+                iconPlay.classList.add('hidden');
+                iconPause.classList.remove('hidden');
+            } else {
+                iconPlay.classList.remove('hidden');
+                iconPause.classList.add('hidden');
+            }
+        }
+
+        // ==========================================
+        // 4. MATH HELPERS & INTERPOLATION
+        // ==========================================
+        function getActivePreset() {
+            return PRESETS.find(p => p.id === state.presetId) || PRESETS[0];
+        }
+
+        // Full transformation T(x, y)
+        function applyFullT(x, y) {
+            return getActivePreset().transform(x, y);
+        }
+
+        // Morphed transformation T_t(x, y) = (1 - t)*I(x,y) + t*T(x,y)
+        function applyMorphedT(x, y, t = state.t) {
+            const target = applyFullT(x, y);
+            return {
+                x: (1 - t) * x + t * target.x,
+                y: (1 - t) * y + t * target.y
+            };
+        }
+
+        function fmtVec(v) {
+            const fx = Math.abs(v.x) < 1e-4 ? 0 : v.x;
+            const fy = Math.abs(v.y) < 1e-4 ? 0 : v.y;
+            return `(${fx.toFixed(2)}, ${fy.toFixed(2)})`;
+        }
+
+        function dist(a, b) {
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        }
+
+        // ==========================================
+        // 5. LIVE AXIOM EVALUATION & INFO PANEL
+        // ==========================================
+        function updateInfoPanel() {
+            const preset = getActivePreset();
+            const isLin = preset.category === 'linear';
+
+            // Header & Category Pills
+            const headerBadge = document.getElementById('header-badge');
+            const infoCategoryPill = document.getElementById('info-category-pill');
+
+            if (isLin) {
+                headerBadge.textContent = 'Linear';
+                headerBadge.className = 'text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+                infoCategoryPill.textContent = 'LINEAR';
+                infoCategoryPill.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+            } else {
+                headerBadge.textContent = 'Non-Linear';
+                headerBadge.className = 'text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30';
+                infoCategoryPill.textContent = 'NON-LINEAR';
+                infoCategoryPill.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30';
+            }
+
+            document.getElementById('info-title').textContent = preset.name;
+            document.getElementById('info-takeaway').textContent = preset.takeaway;
+
+            // Formula display
+            const formulaEl = document.getElementById('info-formula');
+            if (preset.id === 'custom') {
+                const { a, b, c, d } = state.customMatrix;
+                formulaEl.innerHTML = `T(x, y) = [ ${a.toFixed(1)}  ${b.toFixed(1)} ] [ x ]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ ${c.toFixed(1)}  ${d.toFixed(1)} ] [ y ]`;
+            } else {
+                formulaEl.innerHTML = preset.formulaHTML;
+            }
+
+            // Update Vector Readouts
+            document.getElementById('coord-u').textContent = `(${state.u.x.toFixed(1)}, ${state.u.y.toFixed(1)})`;
+            document.getElementById('coord-v').textContent = `(${state.v.x.toFixed(1)}, ${state.v.y.toFixed(1)})`;
+
+            // Evaluate Axioms at full transformation (t = 1)
+            const EPS = 1e-3;
+
+            // 1. Origin check: T(0,0) == (0,0)
+            const tZero = applyFullT(0, 0);
+            const originPass = dist(tZero, { x: 0, y: 0 }) < EPS;
+            updateBadge('origin', originPass, `T(0, 0) = ${fmtVec(tZero)}`);
+
+            // 2. Additivity check: T(u + v) == T(u) + T(v)
+            const uPlusV = { x: state.u.x + state.v.x, y: state.u.y + state.v.y };
+            const tOfSum = applyFullT(uPlusV.x, uPlusV.y);
+            const tU = applyFullT(state.u.x, state.u.y);
+            const tV = applyFullT(state.v.x, state.v.y);
+            const sumOfT = { x: tU.x + tV.x, y: tU.y + tV.y };
+            const addErr = dist(tOfSum, sumOfT);
+            const addPass = addErr < EPS;
+
+            updateBadge(
+                'additivity',
+                addPass,
+                `<div>T(u + v) &nbsp;= <span class="text-purple-300">${fmtVec(tOfSum)}</span></div>
+                 <div>T(u)+T(v) = <span class="text-fuchsia-300">${fmtVec(sumOfT)}</span> ${!addPass ? `<span class="text-rose-400">(Δ=${addErr.toFixed(2)})</span>` : ''}</div>`
+            );
+
+            // 3. Homogeneity check: T(c*u) == c*T(u)
+            const cU = { x: state.c * state.u.x, y: state.c * state.u.y };
+            const tOfScaled = applyFullT(cU.x, cU.y);
+            const scaledOfT = { x: state.c * tU.x, y: state.c * tU.y };
+            const homErr = dist(tOfScaled, scaledOfT);
+            const homPass = homErr < EPS;
+
+            updateBadge(
+                'homogeneity',
+                homPass,
+                `<div>T(${state.c.toFixed(1)}u) &nbsp;= <span class="text-amber-300">${fmtVec(tOfScaled)}</span></div>
+                 <div>${state.c.toFixed(1)}T(u) = <span class="text-orange-300">${fmtVec(scaledOfT)}</span> ${!homPass ? `<span class="text-rose-400">(Δ=${homErr.toFixed(2)})</span>` : ''}</div>`
+            );
+        }
+
+        function updateBadge(key, passed, detailHTML) {
+            const card = document.getElementById(`badge-${key}`);
+            const status = document.getElementById(`status-${key}`);
+            const detail = document.getElementById(`detail-${key}`);
+
+            if (passed) {
+                card.className = 'bg-slate-850 border border-emerald-500/25 rounded-xl p-3 transition';
+                status.textContent = 'PASS';
+                status.className = 'text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400';
+            } else {
+                card.className = 'bg-rose-950/20 border border-rose-500/40 rounded-xl p-3 transition';
+                status.textContent = 'FAIL';
+                status.className = 'text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-500/25 text-rose-400';
+            }
+            detail.innerHTML = detailHTML;
+        }
+
+        // ==========================================
+        // 6. CANVAS COORDINATE TRANSFORMS
+        // ==========================================
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function worldToScreen(wx, wy) {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const cx = rect.width / 2 + state.offsetX;
+            const cy = rect.height / 2 + state.offsetY;
+            return {
+                x: cx + wx * state.scale,
+                y: cy - wy * state.scale
+            };
+        }
+
+        function screenToWorld(sx, sy) {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const cx = rect.width / 2 + state.offsetX;
+            const cy = rect.height / 2 + state.offsetY;
+            return {
+                x: (sx - cx) / state.scale,
+                y: -(sy - cy) / state.scale
+            };
+        }
+
+        // ==========================================
+        // 7. CANVAS RENDERING ENGINE
+        // ==========================================
+        function drawArrow(fromW, toW, color, lineWidth = 2.5, dashed = false, headSize = 10) {
+            const p1 = worldToScreen(fromW.x, fromW.y);
+            const p2 = worldToScreen(toW.x, toW.y);
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const len = Math.hypot(dx, dy);
+
+            if (len < 1) {
+                // Draw a small dot if zero-length vector
+                ctx.save();
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(p1.x, p1.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                return;
+            }
+
+            const angle = Math.atan2(dy, dx);
+            const effectiveHead = Math.min(headSize, len * 0.45);
+
+            ctx.save();
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = lineWidth;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            if (dashed) ctx.setLineDash([5, 5]);
+
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x - Math.cos(angle) * (effectiveHead * 0.7), p2.y - Math.sin(angle) * (effectiveHead * 0.7));
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(p2.x, p2.y);
+            ctx.lineTo(
+                p2.x - effectiveHead * Math.cos(angle - Math.PI / 6),
+                p2.y - effectiveHead * Math.sin(angle - Math.PI / 6)
+            );
+            ctx.lineTo(
+                p2.x - effectiveHead * Math.cos(angle + Math.PI / 6),
+                p2.y - effectiveHead * Math.sin(angle + Math.PI / 6)
+            );
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawLabel(text, worldPos, color, offsetPx = { x: 10, y: -10 }, bg = true) {
+            const p = worldToScreen(worldPos.x, worldPos.y);
+            const x = p.x + offsetPx.x;
+            const y = p.y + offsetPx.y;
+
+            ctx.save();
+            ctx.font = '600 12px "JetBrains Mono", monospace';
+            const metrics = ctx.measureText(text);
+            const padX = 5;
+            const padY = 3;
+            const w = metrics.width + padX * 2;
+            const h = 16 + padY;
+
+            if (bg) {
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                ctx.beginPath();
+                ctx.roundRect(x - padX, y - 13, w, h, 5);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(51, 65, 85, 0.7)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = color;
+            ctx.fillText(text, x, y);
+            ctx.restore();
+        }
+
+        function drawPointMarker(worldPos, fillColor, strokeColor, radius = 5.5) {
+            const p = worldToScreen(worldPos.x, worldPos.y);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = fillColor;
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = strokeColor;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function renderScene() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+
+            // Clear background
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(0, 0, width, height);
+
+            // Determine visible world bounds
+            const topLeft = screenToWorld(0, 0);
+            const bottomRight = screenToWorld(width, height);
+            const minX = Math.floor(topLeft.x) - 2;
+            const maxX = Math.ceil(bottomRight.x) + 2;
+            const minY = Math.floor(bottomRight.y) - 2;
+            const maxY = Math.ceil(topLeft.y) + 2;
+
+            // ------------------------------------------
+            // A. Faint Reference Background Grid (Original Space)
+            // ------------------------------------------
+            ctx.save();
+            ctx.lineWidth = 1;
+            for (let gx = minX; gx <= maxX; gx++) {
+                const pTop = worldToScreen(gx, maxY);
+                const pBot = worldToScreen(gx, minY);
+                ctx.strokeStyle = gx === 0 ? 'rgba(148, 163, 184, 0.28)' : 'rgba(51, 65, 85, 0.25)';
+                ctx.beginPath();
+                ctx.moveTo(pTop.x, pTop.y);
+                ctx.lineTo(pBot.x, pBot.y);
+                ctx.stroke();
+            }
+            for (let gy = minY; gy <= maxY; gy++) {
+                const pLeft = worldToScreen(minX, gy);
+                const pRight = worldToScreen(maxX, gy);
+                ctx.strokeStyle = gy === 0 ? 'rgba(148, 163, 184, 0.28)' : 'rgba(51, 65, 85, 0.25)';
+                ctx.beginPath();
+                ctx.moveTo(pLeft.x, pLeft.y);
+                ctx.lineTo(pRight.x, pRight.y);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // ------------------------------------------
+            // B. Active Transformed Grid (Subdivided curves so non-linear warps render smoothly)
+            // ------------------------------------------
+            const gridRange = Math.max(12, Math.ceil(Math.max(Math.abs(minX), Math.abs(maxX), Math.abs(minY), Math.abs(maxY))) + 2);
+            const step = 0.25; // high resolution segments for curved warps
+
+            ctx.save();
+            // Vertical transformed lines (constant x, varying y)
+            for (let gx = -gridRange; gx <= gridRange; gx++) {
+                const isAxis = gx === 0;
+                ctx.strokeStyle = isAxis ? 'rgba(56, 189, 248, 0.55)' : 'rgba(56, 189, 248, 0.18)';
+                ctx.lineWidth = isAxis ? 2 : 1;
+                ctx.beginPath();
+                let started = false;
+                for (let y = -gridRange; y <= gridRange; y += step) {
+                    const tw = applyMorphedT(gx, y);
+                    const sp = worldToScreen(tw.x, tw.y);
+                    if (!started) {
+                        ctx.moveTo(sp.x, sp.y);
+                        started = true;
+                    } else {
+                        ctx.lineTo(sp.x, sp.y);
+                    }
+                }
+                ctx.stroke();
+            }
+
+            // Horizontal transformed lines (constant y, varying x)
+            for (let gy = -gridRange; gy <= gridRange; gy++) {
+                const isAxis = gy === 0;
+                ctx.strokeStyle = isAxis ? 'rgba(52, 211, 153, 0.55)' : 'rgba(99, 102, 241, 0.18)';
+                ctx.lineWidth = isAxis ? 2 : 1;
+                ctx.beginPath();
+                let started = false;
+                for (let x = -gridRange; x <= gridRange; x += step) {
+                    const tw = applyMorphedT(x, gy);
+                    const sp = worldToScreen(tw.x, tw.y);
+                    if (!started) {
+                        ctx.moveTo(sp.x, sp.y);
+                        started = true;
+                    } else {
+                        ctx.lineTo(sp.x, sp.y);
+                    }
+                }
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // ------------------------------------------
+            // C. Transformed Origin Marker T(0,0)
+            // ------------------------------------------
+            const origScreen = worldToScreen(0, 0);
+            ctx.save();
+            ctx.fillStyle = '#64748b';
+            ctx.beginPath();
+            ctx.arc(origScreen.x, origScreen.y, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            const tOrigin = applyMorphedT(0, 0);
+            if (dist(tOrigin, { x: 0, y: 0 }) > 0.03) {
+                drawPointMarker(tOrigin, '#f43f5e', '#fff', 5);
+                drawLabel('T(0,0)', tOrigin, '#fda4af', { x: 8, y: 14 });
+            }
+
+            // ------------------------------------------
+            // D. Input Vectors u, v, Parallelogram u+v, and c*u (in Original Space)
+            // ------------------------------------------
+            const u = state.u;
+            const v = state.v;
+            const uPlusV = { x: u.x + v.x, y: u.y + v.y };
+            const cU = { x: state.c * u.x, y: state.c * u.y };
+
+            // Original Parallelogram dashed lines
+            ctx.save();
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1.2;
+            const pU = worldToScreen(u.x, u.y);
+            const pV = worldToScreen(v.x, v.y);
+            const pUV = worldToScreen(uPlusV.x, uPlusV.y);
+            ctx.beginPath();
+            ctx.moveTo(pU.x, pU.y);
+            ctx.lineTo(pUV.x, pUV.y);
+            ctx.lineTo(pV.x, pV.y);
+            ctx.stroke();
+            ctx.restore();
+
+            // Input u + v (faint reference arrow)
+            drawArrow({ x: 0, y: 0 }, uPlusV, 'rgba(168, 85, 247, 0.35)', 1.75, true, 8);
+            // Input c*u (faint reference arrow)
+            drawArrow({ x: 0, y: 0 }, cU, 'rgba(251, 191, 36, 0.35)', 1.75, true, 8);
+
+            // Input u and v (semi-transparent dashed when t > 0 so transformed vectors pop)
+            const inputAlpha = state.t > 0.05 ? 0.45 : 1.0;
+            drawArrow({ x: 0, y: 0 }, u, `rgba(34, 211, 238, ${inputAlpha})`, 2.2, state.t > 0.05, 9);
+            drawArrow({ x: 0, y: 0 }, v, `rgba(52, 211, 153, ${inputAlpha})`, 2.2, state.t > 0.05, 9);
+
+            // ------------------------------------------
+            // E. Transformed Vectors T(u) and T(v)
+            // ------------------------------------------
+            // Note: A vector rooted at the origin transforms from T(0) to T(w).
+            // When T(0) = (0,0), T(w) - T(0) = T(w). If T translates space (like T(x,y)=(x+2,y+1)),
+            // drawing vectors from the origin to T(w) clearly exposes why T(u+v) != T(u)+T(v)!
+            const tU = applyMorphedT(u.x, u.y);
+            const tV = applyMorphedT(v.x, v.y);
+
+            if (state.t > 0.02) {
+                drawArrow({ x: 0, y: 0 }, tU, '#22d3ee', 3.2, false, 11);
+                drawArrow({ x: 0, y: 0 }, tV, '#34d399', 3.2, false, 11);
+
+                drawLabel('T(u)', tU, '#67e8f9', { x: 10, y: -10 });
+                drawLabel('T(v)', tV, '#6ee7b7', { x: 10, y: -10 });
+            }
+
+            // ------------------------------------------
+            // F. LINEARITY PROOF OVERLAY
+            // ------------------------------------------
+            if (state.showProof) {
+                const tOfSum = applyMorphedT(uPlusV.x, uPlusV.y);      // T(u + v)
+                const sumOfT = { x: tU.x + tV.x, y: tU.y + tV.y };     // T(u) + T(v)
+
+                const tOfScaled = applyMorphedT(cU.x, cU.y);           // T(c * u)
+                const scaledOfT = { x: state.c * tU.x, y: state.c * tU.y }; // c * T(u)
+
+                // Parallelogram formed by T(u) and T(v)
+                ctx.save();
+                ctx.strokeStyle = 'rgba(232, 121, 249, 0.35)';
+                ctx.setLineDash([4, 4]);
+                ctx.lineWidth = 1.5;
+                const spTU = worldToScreen(tU.x, tU.y);
+                const spTV = worldToScreen(tV.x, tV.y);
+                const spSumT = worldToScreen(sumOfT.x, sumOfT.y);
+                ctx.beginPath();
+                ctx.moveTo(spTU.x, spTU.y);
+                ctx.lineTo(spSumT.x, spSumT.y);
+                ctx.lineTo(spTV.x, spTV.y);
+                ctx.stroke();
+                ctx.restore();
+
+                // 1. Additivity Comparison: T(u + v) vs T(u) + T(v)
+                drawArrow({ x: 0, y: 0 }, tOfSum, '#a855f7', 2.6, false, 10);
+                drawArrow({ x: 0, y: 0 }, sumOfT, '#f0abfc', 2.0, true, 9);
+
+                const addGap = dist(tOfSum, sumOfT);
+                if (addGap > 0.04) {
+                    // Highlight Discrepancy Gap!
+                    const pA = worldToScreen(tOfSum.x, tOfSum.y);
+                    const pB = worldToScreen(sumOfT.x, sumOfT.y);
+                    ctx.save();
+                    ctx.strokeStyle = '#fb7185';
+                    ctx.lineWidth = 2.5;
+                    ctx.setLineDash([3, 3]);
+                    ctx.beginPath();
+                    ctx.moveTo(pA.x, pA.y);
+                    ctx.lineTo(pB.x, pB.y);
+                    ctx.stroke();
+                    ctx.restore();
+
+                    drawPointMarker(tOfSum, '#a855f7', '#ffffff', 5.5);
+                    drawPointMarker(sumOfT, '#f0abfc', '#fb7185', 5.5);
+                    drawLabel('T(u+v)', tOfSum, '#d8b4fe', { x: 10, y: -12 });
+                    drawLabel('T(u)+T(v)', sumOfT, '#f5d0fe', { x: 10, y: 14 });
+                } else {
+                    // Exact overlap ring!
+                    drawPointMarker(tOfSum, '#a855f7', '#34d399', 6.5);
+                    drawLabel('T(u+v) = T(u)+T(v)', tOfSum, '#d8b4fe', { x: 10, y: -12 });
+                }
+
+                // 2. Homogeneity Comparison: T(c*u) vs c*T(u)
+                drawArrow({ x: 0, y: 0 }, tOfScaled, '#f59e0b', 2.6, false, 10);
+                drawArrow({ x: 0, y: 0 }, scaledOfT, '#fdba74', 2.0, true, 9);
+
+                const homGap = dist(tOfScaled, scaledOfT);
+                if (homGap > 0.04) {
+                    // Highlight Discrepancy Gap!
+                    const pA = worldToScreen(tOfScaled.x, tOfScaled.y);
+                    const pB = worldToScreen(scaledOfT.x, scaledOfT.y);
+                    ctx.save();
+                    ctx.strokeStyle = '#fb7185';
+                    ctx.lineWidth = 2.5;
+                    ctx.setLineDash([3, 3]);
+                    ctx.beginPath();
+                    ctx.moveTo(pA.x, pA.y);
+                    ctx.lineTo(pB.x, pB.y);
+                    ctx.stroke();
+                    ctx.restore();
+
+                    drawPointMarker(tOfScaled, '#f59e0b', '#ffffff', 5.5);
+                    drawPointMarker(scaledOfT, '#fdba74', '#fb7185', 5.5);
+                    drawLabel('T(cu)', tOfScaled, '#fcd34d', { x: 10, y: -12 });
+                    drawLabel('cT(u)', scaledOfT, '#fed7aa', { x: 10, y: 14 });
+                } else {
+                    drawPointMarker(tOfScaled, '#f59e0b', '#34d399', 6.5);
+                    drawLabel('T(cu) = cT(u)', tOfScaled, '#fcd34d', { x: 10, y: 14 });
+                }
+            }
+
+            // ------------------------------------------
+            // G. Interactive Draggable Handles for Input Vectors u and v
+            // ------------------------------------------
+            drawDraggableHandle(u, '#06b6d4', '#cffafe', 'u', state.hoverVector === 'u' || state.draggingVector === 'u');
+            drawDraggableHandle(v, '#10b981', '#d1fae5', 'v', state.hoverVector === 'v' || state.draggingVector === 'v');
+        }
+
+        function drawDraggableHandle(worldPos, fill, ring, label, isHighlighted) {
+            const p = worldToScreen(worldPos.x, worldPos.y);
+            ctx.save();
+
+            // Outer glow ring when hovered/dragged
+            if (isHighlighted) {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
+                ctx.fillStyle = fill + '33';
+                ctx.fill();
+            }
+
+            // Handle circle
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, isHighlighted ? 8.5 : 7, 0, Math.PI * 2);
+            ctx.fillStyle = fill;
+            ctx.fill();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+
+            ctx.restore();
+            drawLabel(label, worldPos, ring, { x: -18, y: -10 });
+        }
+
+        // ==========================================
+        // 8. ANIMATION LOOP
+        // ==========================================
+        let lastTime = performance.now();
+        function animate(now) {
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+
+            if (state.isPlaying) {
+                state.t += state.playDirection * dt * 0.9;
+                if (state.t >= 1) {
+                    state.t = 1;
+                    setPlaying(false); // Stop smoothly at transformed state
+                } else if (state.t <= 0) {
+                    state.t = 0;
+                    state.playDirection = 1;
+                }
+                sliderT.value = state.t.toFixed(2);
+                valT.textContent = state.t.toFixed(2);
+            }
+
+            renderScene();
+            requestAnimationFrame(animate);
+        }
+
+        // ==========================================
+        // 9. POINTER / TOUCH INTERACTION (DRAGGING & PANNING)
+        // ==========================================
+        function getEventPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function hitTestHandle(sx, sy) {
+            const pU = worldToScreen(state.u.x, state.u.y);
+            const pV = worldToScreen(state.v.x, state.v.y);
+            const hitRadius = 22; // generous touch-friendly radius
+
+            const dU = Math.hypot(sx - pU.x, sy - pU.y);
+            const dV = Math.hypot(sx - pV.x, sy - pV.y);
+
+            if (dU < hitRadius && dU <= dV) return 'u';
+            if (dV < hitRadius) return 'v';
+            return null;
+        }
+
+        function onPointerDown(e) {
+            const pos = getEventPos(e);
+            const hit = hitTestHandle(pos.x, pos.y);
+            if (hit) {
+                state.draggingVector = hit;
+                canvas.style.cursor = 'grabbing';
+            } else {
+                state.draggingVector = 'pan';
+                state.panStart = { x: pos.x - state.offsetX, y: pos.y - state.offsetY };
+                canvas.style.cursor = 'grabbing';
+            }
+        }
+
+        function onPointerMove(e) {
+            const pos = getEventPos(e);
+
+            if (state.draggingVector === 'u' || state.draggingVector === 'v') {
+                if (e.cancelable) e.preventDefault();
+                const w = screenToWorld(pos.x, pos.y);
+                // Soft snap to 0.1 increments for clean numbers
+                const snappedX = Math.round(w.x * 10) / 10;
+                const snappedY = Math.round(w.y * 10) / 10;
+                state[state.draggingVector] = {
+                    x: Math.max(-8, Math.min(8, snappedX)),
+                    y: Math.max(-8, Math.min(8, snappedY))
+                };
+                updateInfoPanel();
+            } else if (state.draggingVector === 'pan') {
+                if (e.cancelable) e.preventDefault();
+                state.offsetX = pos.x - state.panStart.x;
+                state.offsetY = pos.y - state.panStart.y;
+            } else {
+                const hover = hitTestHandle(pos.x, pos.y);
+                state.hoverVector = hover;
+                canvas.style.cursor = hover ? 'pointer' : 'grab';
+            }
+        }
+
+        function onPointerUp() {
+            state.draggingVector = null;
+            canvas.style.cursor = state.hoverVector ? 'pointer' : 'grab';
+        }
+
+        canvas.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+
+        canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+        window.addEventListener('touchmove', onPointerMove, { passive: false });
+        window.addEventListener('touchend', onPointerUp);
+
+        // Wheel zoom
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+            state.scale = Math.max(20, Math.min(140, state.scale * zoomFactor));
+        }, { passive: false });
+
+        // ==========================================
+        // 10. UI CONTROLS EVENT LISTENERS
+        // ==========================================
+        sliderT.addEventListener('input', (e) => {
+            setPlaying(false);
+            state.t = parseFloat(e.target.value);
+            valT.textContent = state.t.toFixed(2);
+        });
+
+        btnPlayPause.addEventListener('click', () => {
+            if (!state.isPlaying) {
+                if (state.t >= 0.99) {
+                    state.t = 0;
+                    sliderT.value = 0;
+                    valT.textContent = '0.00';
+                }
+                state.playDirection = 1;
+                setPlaying(true);
+            } else {
+                setPlaying(false);
+            }
+        });
+
+        sliderC.addEventListener('input', (e) => {
+            state.c = parseFloat(e.target.value);
+            valC.textContent = state.c.toFixed(2);
+            updateInfoPanel();
+        });
+
+        btnProofToggle.addEventListener('click', () => {
+            state.showProof = !state.showProof;
+            legendProofItems.classList.toggle('hidden', !state.showProof);
+            if (state.showProof) {
+                btnProofToggle.className = 'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition border bg-indigo-500/20 border-indigo-500/50 text-indigo-300 shadow-sm shadow-indigo-500/10';
+            } else {
+                btnProofToggle.className = 'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition border bg-slate-850 border-slate-700 text-slate-400 hover:text-slate-200';
+            }
+        });
+
+        document.getElementById('btn-reset-vectors').addEventListener('click', () => {
+            state.u = { x: 2.0, y: 1.0 };
+            state.v = { x: -1.0, y: 2.0 };
+            state.c = 1.5;
+            sliderC.value = 1.5;
+            valC.textContent = '1.50';
+            updateInfoPanel();
+        });
+
+        document.getElementById('btn-zoom-in').addEventListener('click', () => {
+            state.scale = Math.min(140, state.scale * 1.2);
+        });
+
+        document.getElementById('btn-zoom-out').addEventListener('click', () => {
+            state.scale = Math.max(20, state.scale / 1.2);
+        });
+
+        document.getElementById('btn-reset-view').addEventListener('click', () => {
+            state.offsetX = 0;
+            state.offsetY = 0;
+            state.scale = 52;
+        });
+
+        // Custom Matrix Inputs
+        ['a', 'b', 'c', 'd'].forEach(key => {
+            document.getElementById(`mat-${key}`).addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                state.customMatrix[key] = isNaN(val) ? 0 : val;
+                updateInfoPanel();
+            });
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // ==========================================
+        // 11. BOOTSTRAP ON LOAD
+        // ==========================================
+        window.onload = function () {
+            resizeCanvas();
+            renderPresetButtons();
+            updateInfoPanel();
+            setPlaying(false);
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
